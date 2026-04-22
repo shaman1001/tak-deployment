@@ -22,3 +22,5 @@ sudo -u takadmin -i chmod +x /home/takadmin/installer.sh
 
 # 5. Run the installer, pressing "n" continuously to safely skip optional plugins (MediaMTX, Mumble)
 sudo -u takadmin -i sh -c 'export DEBIAN_FRONTEND=noninteractive; yes "n" | ./installer.sh'
+
+ufw disable
