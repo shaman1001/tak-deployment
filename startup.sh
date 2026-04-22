@@ -14,10 +14,11 @@ echo "takadmin ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/takadmin
 # 3. Download the installer script locally
 sudo -u takadmin -i curl -s -L https://i.opentakserver.io/ubuntu_installer -o /home/takadmin/installer.sh
 
-# 4. Aggressively patch the installer: remove terminal requirements and force 'yes' on any hidden apt commands
+# 4. Aggressively patch the installer: remove terminal requirements (handling spaces) and force 'yes' on hidden apt commands
+sudo -u takadmin -i sed -i 's|< /dev/tty||g' /home/takadmin/installer.sh
 sudo -u takadmin -i sed -i 's|</dev/tty||g' /home/takadmin/installer.sh
 sudo -u takadmin -i sed -i 's|apt install|apt install -y|g' /home/takadmin/installer.sh
 sudo -u takadmin -i chmod +x /home/takadmin/installer.sh
 
-# 5. Run the installer, pressing "Enter" continuously to accept all defaults safely
-sudo -u takadmin -i sh -c 'export DEBIAN_FRONTEND=noninteractive; yes "" | ./installer.sh'
+# 5. Run the installer, pressing "n" continuously to safely skip optional plugins (MediaMTX, Mumble)
+sudo -u takadmin -i sh -c 'export DEBIAN_FRONTEND=noninteractive; yes "n" | ./installer.sh'
