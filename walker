@@ -1,0 +1,46 @@
+#!/bin/bash
+# =====================================================================
+# OPENTAKSERVER "LAZY DOG" SETUP - VERIFIED FOR 2026
+# =====================================================================
+
+# 1. KILL THE LOCKOUTS
+# Disable UFW immediately to let GCP VPC Firewall handle security
+sudo ufw disable
+
+# 2. PRE-INSTALL HEAVY DEPENDENCIES
+# Prevents the installer from choking during the CPU-intensive build
+sudo apt update
+sudo apt install -y python3-pip python3-venv python3-dev postgresql postgresql-contrib nginx rabbitmq-server curl sudo
+
+# 3. DOWNLOAD & RUN INSTALLER (AUTO-PILOT MODE)
+# We use printf to feed: y (Install), n (ZeroTier), n (Mumble), y (MediaMTX)
+curl -s -L https://i.opentakserver.io/ubuntu_installer -o /home/$USER/installer.sh
+chmod +x /home/$USER/installer.sh
+chown $USER:$USER /home/$USER/installer.sh
+printf 'y\nn\nn\ny\n' | sudo -u $USER /home/$USER/installer.sh
+
+# 4. BUILD THE "ENGINE" (PYTHON VIRTUAL ENV)
+# Ensuring the missing 'opentakserver.main' module is physically installed
+cd /home/$USER/ots
+python3 -m venv venv
+./venv/bin/pip install --upgrade pip
+./venv/bin/pip install opentakserver
+
+# 5. DATA PACKAGE DIRECTORY FIX
+# Creates the folders the web dashboard needs to function
+mkdir -p /home/$USER/ots/data/packages
+mkdir -p /home/$USER/ots/data/certs
+chown -R $USER:$USER /home/$USER/ots/data
+
+# 6. RESTART & STABILIZE
+# Ensure the "Inner Bouncer" stayed off and services are fresh
+sudo ufw disable
+sudo systemctl restart rabbitmq-server
+sudo systemctl enable opentakserver
+sudo systemctl restart opentakserver
+sudo systemctl restart eud_handler eud_handler_ssl
+
+echo "====================================================================="
+echo "INSTALL COMPLETE: Access at http://$(curl -s ifconfig.me):8080"
+echo "Login: administrator / password"
+echo "====================================================================="
