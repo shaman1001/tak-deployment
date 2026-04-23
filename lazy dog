@@ -14,8 +14,7 @@ sudo apt install -y python3-pip python3-venv python3-dev postgresql postgresql-c
 
 # 3. DOWNLOAD & RUN INSTALLER (AUTO-PILOT MODE)
 # We use printf to feed: y (Install), n (ZeroTier), n (Mumble), y (MediaMTX)
-curl -s -L https://i.opentakserver.io/ubuntu_installer -o /home/$USER/installer.sh
-chmod +x /home/$USER/installer.sh
+curl -L https://raw.githubusercontent.com/brian7704/OpenTAKServer-Installer/master/ubuntu_installer.sh -o installer.sh chmod +x /home/$USER/installer.sh
 chown $USER:$USER /home/$USER/installer.sh
 printf 'y\nn\nn\ny\n' | sudo -u $USER /home/$USER/installer.sh
 
