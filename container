@@ -1,0 +1,8 @@
+# Move the file to the project folder
+mv ~/TAKSERVER-DOCKER-5.7-RELEASE-8.ZIP ~/tak-server/
+
+# Go to the scripts folder
+cd ~/tak-server/scripts
+
+# Run the installer
+sudo ./setup.sh
