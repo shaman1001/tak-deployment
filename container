@@ -1,7 +1,14 @@
+#You will need the updqted files for the setup.
+#Update the container package information to the following files
+
+
 #START THE INSTANCE
 
 #UPDATE THE INSTANCE
+sudo apt-get update
 
+#Install Docker
+sudo apt-get install -y docker.io docker-compose
 
 #CREATE FOLDER
 mkdir -p ~/tak-server
