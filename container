@@ -1,4 +1,16 @@
-# Move the file to the project folder
+#START THE INSTANCE
+
+#UPDATE THE INSTANCE
+
+
+#CREATE FOLDER
+mkdir -p ~/tak-server
+
+#GET THE SCRIPTS
+git clone https://github.com/Cloud-RF/tak-server.git ~/tak-server
+# UPLOAD THE ATAK CONTAINER FILE
+
+# Move the file to the project folder (IF NOT HERE ALREADY)
 mv ~/TAKSERVER-DOCKER-5.7-RELEASE-8.ZIP ~/tak-server/
 
 # Go to the scripts folder
