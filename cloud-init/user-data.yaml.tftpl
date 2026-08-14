@@ -1,0 +1,71 @@
+#cloud-config
+# ---------------------------------------------------------------------------
+# First-boot bootstrap for the TAK server.
+#
+# This does NOT patch any interactive installer. It installs Docker and brings
+# up a pinned docker compose stack — the whole reason this rewrite is repeatable.
+# Rendered by Terraform via templatefile(); ${compose_repo} and ${compose_ref}
+# are substituted at apply time.
+# ---------------------------------------------------------------------------
+package_update: true
+package_upgrade: false
+packages:
+  - ca-certificates
+  - curl
+  - git
+
+write_files:
+  - path: /opt/tak/bootstrap.sh
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      exec > >(tee -a /var/log/tak-bootstrap.log) 2>&1
+      echo "[tak-bootstrap] $(date -Is) starting"
+
+      # 1. Docker Engine + compose plugin (official install script).
+      if ! command -v docker >/dev/null 2>&1; then
+        curl -fsSL https://get.docker.com | sh
+      fi
+      systemctl enable --now docker
+      usermod -aG docker takadmin || true
+
+      # 2. Fetch the PINNED compose stack (no moving targets on op day).
+      APP_DIR=/opt/tak/stack
+      if [ ! -d "$APP_DIR/.git" ]; then
+        git clone "${compose_repo}" "$APP_DIR"
+      fi
+      cd "$APP_DIR"
+      git fetch --all --tags --prune
+      git checkout "${compose_ref}"
+
+      # 3. Start it. `pull` is best-effort (build-from-source services have no
+      #    prebuilt image); `up -d` builds those as needed.
+      docker compose pull || true
+      docker compose up -d
+      echo "[tak-bootstrap] $(date -Is) stack up"
+
+  - path: /etc/systemd/system/tak-stack.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=TAK docker compose stack
+      Requires=docker.service
+      After=docker.service network-online.target
+      Wants=network-online.target
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      WorkingDirectory=/opt/tak/stack
+      ExecStart=/usr/bin/docker compose up -d
+      ExecStop=/usr/bin/docker compose down
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - [bash, /opt/tak/bootstrap.sh]
+  - [systemctl, enable, tak-stack.service]
+
+final_message: "TAK bootstrap finished after $UPTIME s. Stack in /opt/tak/stack."

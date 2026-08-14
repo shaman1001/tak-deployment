@@ -1,0 +1,17 @@
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+
+# Secrets / local config — never commit these
+*.tfvars
+!*.tfvars.example
+.env
+*.auto.tfvars
+
+# Editor / OS
+.DS_Store
+*.swp
