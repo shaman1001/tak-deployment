@@ -41,6 +41,27 @@ make init
 
 ---
 
+## Test it on your account
+
+The Terraform is already validated (`terraform validate` **and** a full
+`terraform plan` pass against the real UpCloud provider v5.43 schema), so a first
+run is low-risk. Confirm the account-specific values (zone, plan, and OS-template
+title) in the UpCloud control panel or via the `upctl` CLI — the defaults in
+`terraform.tfvars.example` match common values — then do a throwaway loop:
+
+```bash
+make validate   # config check (already known-good)
+make plan       # preview exactly what will be created — read it
+make apply      # create the server
+make output     # get the IP; open the web UI from your admin IP
+make destroy    # tear it all down
+```
+
+The whole thing is billed by the hour on UpCloud, so a test apply→destroy costs
+a few cents.
+
+---
+
 ## Day-of-operation
 
 ### 1. Launch
@@ -51,7 +72,8 @@ make bootstrap-log  # optional: watch the install finish (~5-8 min)
 ```
 
 ### 2. Configure users
-1. Open `https://<ip>` (the web UI / CloudTAK). Accept the self-signed cert.
+1. Open `https://<ip>` from your admin IP (port 443 is locked to `admin_ips` by
+   default). Accept the self-signed cert.
 2. Log in with the OpenTAKServer default admin account and **change the password
    immediately**.
 3. Create user accounts.
@@ -89,16 +111,47 @@ docs/        options analysis + decision record
 legacy/      the previous GCP/installer-patching attempts (kept for reference)
 ```
 
-## Notes & honest caveats
+## Security hardening
 
-- The **firewall** opens only the TAK client/web ports to the internet
-  (443, 8443, 8446, 8089, 8883); **SSH (22) is restricted to `admin_ips`**.
-- **Pin `compose_ref`** to a tag/commit you've validated before a real op —
-  don't deploy off a moving `master`.
-- OpenTAKServer's Docker packaging is young; validate a pinned ref once. To
-  switch to prebuilt images or the official TAK Server, see
+In place by default:
+
+- **Admin plane locked down.** SSH (22), the web admin UI / CloudTAK (443), and
+  ping are reachable only from `admin_ips`. Only the TAK client ports —
+  8089 (CoT/TLS), 8443 (API/data), 8446 (enrollment) — are open to the internet,
+  because field devices connect from arbitrary networks.
+- **Default-credential window closed at the network layer.** Since 443 is
+  admin-only by default, OpenTAKServer's default login page is never exposed to
+  the world before you change the password. (If you flip
+  `open_web_ui_to_world = true` for the browser client, change the password
+  *first*.)
+- **Key-only SSH.** Password and root login disabled (`ssh_pwauth: false` plus an
+  sshd drop-in: `PermitRootLogin no`, `PasswordAuthentication no`,
+  `KbdInteractiveAuthentication no`, `MaxAuthTries 3`). You log in as the
+  non-root `takadmin` user.
+- **Automatic security updates** via `unattended-upgrades`, with pending patches
+  applied on first boot.
+- **Default-deny inbound firewall** (IPv4 + IPv6) at the UpCloud platform layer.
+  It's stateful, so the server can still pull Docker images / updates outbound.
+- **Unused ports closed:** 80 (Let's Encrypt), 8080 (internal API), and 8883
+  (MQTT) are not exposed unless you add them.
+
+Residual items worth knowing:
+
+- **Self-signed TLS by default** — clients see a cert warning. For a trusted
+  cert, point a domain at the server, open port 80, and enable Let's Encrypt in
+  the OTS config.
+- **Containers run as root** inside Docker (upstream OTS packaging); the host
+  user is non-root, but container isolation is the boundary.
+- **Keep `admin_ips` tight** — a single address is best; a wide range widens who
+  can reach SSH and the admin UI.
+
+## Notes & caveats
+
+- The Terraform is validated (`terraform validate` + a full `terraform plan`
+  against the real UpCloud provider v5.43 schema). It has **not** been applied
+  end-to-end against a live account from here, so confirm the exact zone / plan /
+  OS-template names for your account and do one throwaway `apply`/`destroy` first.
+- **Pin `compose_ref`** to a tag/commit you've validated — don't run an operation
+  off a moving `master`. OpenTAKServer's Docker packaging is young.
+- To switch to prebuilt images or the official TAK Server, see
   [`docs/deployment-options.md`](docs/deployment-options.md).
-- This Terraform has not been applied against a live UpCloud account from CI;
-  run `make validate` and a `make plan` first, and expect to confirm exact zone
-  / plan / OS-template names for your account (`upctl zone list`,
-  `upctl plan list`, `upctl storage list --template`).

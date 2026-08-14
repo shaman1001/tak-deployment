@@ -87,3 +87,16 @@ variable "compose_ref" {
   type        = string
   default     = "master"
 }
+
+variable "open_web_ui_to_world" {
+  description = <<-EOT
+    If false (default, hardened), the web admin UI / CloudTAK browser client on
+    port 443 is reachable only from admin_ips — so the OpenTAKServer login page
+    (which boots with default credentials) is not exposed to the internet. Set
+    true only if field users need the browser client, and change the default
+    admin password before doing so. ATAK/iTAK/WinTAK clients do NOT need this;
+    they use the client ports (8089/8443/8446), which are always open.
+  EOT
+  type        = bool
+  default     = false
+}

@@ -8,13 +8,35 @@
 # are substituted at apply time.
 # ---------------------------------------------------------------------------
 package_update: true
-package_upgrade: false
+package_upgrade: true # patch known vulns on first boot
 packages:
   - ca-certificates
   - curl
   - git
+  - unattended-upgrades
+
+# Disable SSH password auth (belt-and-suspenders with the sshd drop-in below).
+ssh_pwauth: false
 
 write_files:
+  - path: /etc/ssh/sshd_config.d/99-hardening.conf
+    permissions: "0644"
+    owner: root:root
+    content: |
+      PasswordAuthentication no
+      PermitRootLogin no
+      KbdInteractiveAuthentication no
+      ChallengeResponseAuthentication no
+      X11Forwarding no
+      MaxAuthTries 3
+
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    permissions: "0644"
+    owner: root:root
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+
   - path: /opt/tak/bootstrap.sh
     permissions: "0755"
     owner: root:root
@@ -65,6 +87,10 @@ write_files:
       WantedBy=multi-user.target
 
 runcmd:
+  # Apply the SSH hardening drop-in and turn on automatic security updates.
+  - ["sh", "-c", "systemctl restart ssh || systemctl restart sshd || true"]
+  - [systemctl, enable, --now, unattended-upgrades]
+  # Install Docker and bring up the pinned TAK stack.
   - [bash, /opt/tak/bootstrap.sh]
   - [systemctl, enable, tak-stack.service]
 

@@ -4,10 +4,10 @@ terraform {
   required_providers {
     upcloud = {
       source = "UpCloudLtd/upcloud"
-      # Pin the provider so `terraform apply` is reproducible over time.
-      # Check https://github.com/UpCloudLtd/terraform-provider-upcloud/releases
-      # for the current line and bump deliberately.
-      version = "~> 5.0"
+      # Pinned to the current 5.x line (latest at time of writing: 5.43.0).
+      # `terraform init` writes .terraform.lock.hcl; commit it if you want
+      # byte-for-byte reproducible provider versions across machines.
+      version = "~> 5.43"
     }
   }
 }
