@@ -137,9 +137,15 @@ In place by default:
 
 Residual items worth knowing:
 
-- **Self-signed TLS by default** — clients see a cert warning. For a trusted
-  cert, point a domain at the server, open port 80, and enable Let's Encrypt in
-  the OTS config.
+- **Certificates are the server's job — and it does them.** OpenTAKServer
+  auto-generates its own CA and issues each user's client certificate, bundled
+  into the data package you hand out (CA truststore + client keystore +
+  connection profile). ATAK/iTAK/WinTAK trust that CA straight from the package,
+  so the field connection on 8089 has **no cert warning** — this is the intended
+  TAK PKI model, not a gap. The only self-signed caveat is the **browser**: the
+  web UI's own TLS cert is self-signed by default (a browser warning for the
+  admin), and **QR-code enrollment requires a publicly trusted cert**. For
+  either, add a domain, open port 80, and enable Let's Encrypt in the OTS config.
 - **Containers run as root** inside Docker (upstream OTS packaging); the host
   user is non-root, but container isolation is the boundary.
 - **Keep `admin_ips` tight** — a single address is best; a wide range widens who
