@@ -1,101 +1,150 @@
 # TAK Server — turnkey ephemeral deployment (UpCloud)
 
-Stand up a TAK server for an operation with **one command**, and wipe it with
-another. No installer patching, no interactive scripts — Docker Compose on a
-declaratively-provisioned UpCloud server.
+Stand up an OpenTAKServer for an operation, hand out data packages to your team,
+and wipe the whole thing when you're done. No installer patching, no interactive
+scripts — a pinned Docker Compose stack on a declaratively-provisioned UpCloud
+server.
 
-- **Server:** OpenTAKServer (web UI, username/password, downloadable data
-  packages, CloudTAK browser client). Runs as a pinned docker compose stack.
+- **Server:** OpenTAKServer — web UI, username/password logins, an
+  auto-generated CA that issues each user's client certificate as a data package,
+  and the CloudTAK browser client.
 - **Infra:** UpCloud via Terraform + cloud-init. Helsinki zone for low latency.
-- **Model:** ephemeral. `make apply` to stand up, `make destroy` for scorched earth.
+- **Model:** ephemeral. Build it for the op, `make destroy` after.
 
-Why it was rebuilt and what the alternatives are: see
-[`docs/deployment-options.md`](docs/deployment-options.md). The previous scripts
-are preserved under [`legacy/`](legacy/).
-
----
-
-## Prerequisites (one-time)
-
-1. **UpCloud account** with an **API-enabled sub-account** (control panel →
-   People → add a sub-account, tick API access). Never use your main login for
-   automation.
-2. **Terraform** ≥ 1.5 (or OpenTofu) and **make** on your laptop.
-3. An **SSH key pair** (`ssh-keygen -t ed25519` if you don't have one).
-
-```bash
-export UPCLOUD_USERNAME="your-api-subaccount"
-export UPCLOUD_PASSWORD="your-api-subaccount-password"
-```
-
-## Configure (one-time)
-
-```bash
-cd terraform
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars: paste your SSH public key, set admin_ips to your
-# public IP (curl ifconfig.me), pick a zone/plan, and PIN compose_ref.
-cd ..
-make init
-```
+Background reading (optional): [`docs/deployment-options.md`](docs/deployment-options.md)
+explains why it's built this way and what the alternatives are. The previous
+scripts are preserved under [`legacy/`](legacy/).
 
 ---
 
-## Test it on your account
+## Setup — from zero to a running server
 
-The Terraform is already validated (`terraform validate` **and** a full
-`terraform plan` pass against the real UpCloud provider v5.43 schema), so a first
-run is low-risk. Confirm the account-specific values (zone, plan, and OS-template
-title) in the UpCloud control panel or via the `upctl` CLI — the defaults in
-`terraform.tfvars.example` match common values — then do a throwaway loop:
+**Steps 1–3 are one-time. Steps 4–7 are the per-operation loop.**
+At any point, run `make doctor` to check what's done and what's missing.
+
+### Step 1 — Install the tools (one-time)
+
+You need **Terraform** (or OpenTofu), **make**, **git**, and **ssh** on your
+laptop.
+
+<details>
+<summary>macOS (Homebrew)</summary>
 
 ```bash
-make validate   # config check (already known-good)
-make plan       # preview exactly what will be created — read it
-make apply      # create the server
-make output     # get the IP; open the web UI from your admin IP
-make destroy    # tear it all down
+brew install terraform make git
 ```
+</details>
 
-The whole thing is billed by the hour on UpCloud, so a test apply→destroy costs
-a few cents.
+<details>
+<summary>Ubuntu / Debian</summary>
 
----
-
-## Day-of-operation
-
-### 1. Launch
 ```bash
-make apply        # ~30s to create the server; cloud-init then installs the stack
-make output       # shows the public IP and web UI URL
-make bootstrap-log  # optional: watch the install finish (~5-8 min)
+sudo apt-get update && sudo apt-get install -y make git curl
+wget -O- https://apt.releases.hashicorp.com/gpg | \
+  sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] \
+https://apt.releases.hashicorp.com $(lsb_release -cs) main" | \
+  sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt-get update && sudo apt-get install -y terraform
+```
+</details>
+
+If you don't already have an SSH key, create one (press Enter through the
+prompts):
+
+```bash
+ssh-keygen -t ed25519
 ```
 
-### 2. Configure users
-1. Open `https://<ip>` from your admin IP (port 443 is locked to `admin_ips` by
-   default). Accept the self-signed cert.
+### Step 2 — Get UpCloud API credentials (one-time)
+
+Terraform talks to UpCloud through a dedicated API user — never your main login.
+
+1. Sign in to the **UpCloud Control Panel**.
+2. Go to **People → Add new user** (this creates a sub-account).
+3. Set a username and password, and **enable "Allow API connections."**
+   *(This toggle is required — without it Terraform gets `Forbidden`.)*
+4. Put the credentials in your shell. Add these lines to `~/.zshrc` or
+   `~/.bashrc` so they persist:
+
+```bash
+export UPCLOUD_USERNAME="the-api-subaccount"
+export UPCLOUD_PASSWORD="its-password"
+```
+
+### Step 3 — Clone and configure (one-time)
+
+```bash
+git clone https://github.com/shaman1001/tak-deployment.git
+cd tak-deployment
+make configure     # creates terraform/terraform.tfvars from the template
+make doctor        # checks tools + creds, and prints YOUR public IP
+```
+
+`make doctor` prints your current public IP — copy it. Now open
+`terraform/terraform.tfvars` and set:
+
+| Field             | What to put                                                            |
+|-------------------|------------------------------------------------------------------------|
+| `ssh_public_keys` | the contents of `~/.ssh/id_ed25519.pub`                                |
+| `admin_ips`       | your public IP from `make doctor` (locks down SSH + the admin web UI)  |
+| `zone` / `plan`   | defaults `fi-hel1` / `2xCPU-4GB` are fine to leave                      |
+| `compose_ref`     | pin to a validated OpenTAKServer tag before a real op (see caveats)     |
+
+### Step 4 — Launch the server
+
+```bash
+make init          # one-time per clone: downloads the UpCloud provider
+make apply         # review the plan, type 'yes' — creates the server (~30s)
+make output        # prints the IP, web UI URL, and ssh command
+make bootstrap-log # optional: watch Docker + the stack install (~5-8 min)
+```
+
+The server is ready when `bootstrap-log` prints `stack up`, or when
+`make status` lists running containers.
+
+### Step 5 — Create users and hand out data packages
+
+1. Open the web UI URL from `make output` (`https://<ip>`) from your admin
+   machine. Accept the browser's self-signed-cert warning.
 2. Log in with the OpenTAKServer default admin account and **change the password
-   immediately**.
-3. Create user accounts.
-4. Download each user's **data package** (`.zip`) and send it to the team to
-   import into ATAK / iTAK / WinTAK.
+   immediately.**
+3. Create one user account per team member.
+4. Download each user's **data package** (`.zip`) and send it to them. They
+   import it into ATAK / iTAK / WinTAK — it carries the server's CA and their
+   client cert, so the app connects with no further setup and no cert warning.
 
-### 3. End of operation (scorched earth)
+### Step 6 — Run the operation
+
 ```bash
-make destroy      # deletes the server and every byte of data
+make status   # containers running on the server
+make logs     # tail the stack logs
+make ssh      # shell into the server as takadmin
 ```
+
+### Step 7 — End of operation (scorched earth)
+
+```bash
+make destroy  # type 'yes' — deletes the server and every byte of data
+```
+
+Next operation: start again at **Step 4**. A test run is just `make apply`
+followed by `make destroy`; UpCloud bills by the hour, so it costs a few cents.
 
 ---
 
-## Handy commands
+## Troubleshooting
 
-```bash
-make status   # docker compose ps on the server
-make logs     # tail the stack logs
-make ssh      # shell in as takadmin
-make plan     # preview infra changes
-make help     # full list
-```
+| Symptom | Fix |
+|---|---|
+| `terraform: command not found` | Step 1 not done, or restart your shell. `make doctor` confirms. |
+| `ERROR: UPCLOUD_USERNAME not set` | Re-run the `export` lines from Step 2 in this shell. |
+| `Failed to authenticate to UpCloud API` | Wrong creds, or the sub-account lacks **Allow API connections** (Step 2.3). |
+| Can't reach `https://<ip>` / SSH times out | Your public IP changed. Update `admin_ips` in `terraform.tfvars` and re-run `make apply`. `make doctor` shows your current IP. |
+| Web UI still down after ~8 min | `make ssh`, then `sudo tail -100 /var/log/tak-bootstrap.log`; `make status` for container states. |
+| `Error: ... zone / plan / template ...` | That name isn't valid for your account — check exact values in the UpCloud Control Panel and update `terraform.tfvars`. |
+
+All `make` targets: `make help`.
 
 ---
 
@@ -106,7 +155,7 @@ terraform/   UpCloud server + platform firewall
   main.tf, variables.tf, outputs.tf, versions.tf, terraform.tfvars.example
 cloud-init/  first-boot: install Docker, pull the PINNED compose stack, start it
   user-data.yaml.tftpl
-Makefile     operator wrappers (apply/destroy/ssh/logs/status/...)
+Makefile     operator wrappers (configure/doctor/apply/destroy/ssh/logs/...)
 docs/        options analysis + decision record
 legacy/      the previous GCP/installer-patching attempts (kept for reference)
 ```

@@ -7,7 +7,8 @@ ssh_public_keys = [
   "ssh-ed25519 AAAA... you@laptop",
 ]
 
-# Your own public IP(s) — only these can reach SSH. Find yours: curl ifconfig.me
+# Your own public IP(s) — only these can reach SSH and the admin web UI.
+# `make doctor` prints your current public IP.
 admin_ips = [
   "203.0.113.10",
 ]
@@ -21,3 +22,8 @@ plan = "2xCPU-4GB"
 # PIN the app version. Replace "master" with a validated tag/commit before a
 # real operation so deploys are reproducible.
 compose_ref = "master"
+
+# Optional hardening toggle (default false = hardened): only set true if field
+# users need the CloudTAK *browser* client. ATAK/iTAK/WinTAK apps do NOT need
+# this. If you enable it, change the default admin password first.
+# open_web_ui_to_world = false
